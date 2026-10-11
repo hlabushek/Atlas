@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Atlas VPS every five minutes
+
+[Timer]
+OnBootSec=3m
+OnUnitActiveSec=5m
+Persistent=true
+Unit=atlas-monitor.service
+
+[Install]
+WantedBy=timers.target

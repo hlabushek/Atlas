@@ -1,0 +1,21 @@
+# Fresh production deployment; existing database password rotation is a separate operator procedure.
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${ATLAS_POSTGRES_PASSWORD:?Set a unique production database password}
+  migrate:
+    environment:
+      ATLAS_DATABASE_URL: ${ATLAS_DATABASE_URL:?Set the matching production database URL}
+  api:
+    environment:
+      ATLAS_DATABASE_URL: ${ATLAS_DATABASE_URL:?Set the matching production database URL}
+      ATLAS_COOKIE_SECURE: 'true'
+  worker:
+    environment:
+      ATLAS_DATABASE_URL: ${ATLAS_DATABASE_URL:?Set the matching production database URL}
+  scheduler:
+    environment:
+      ATLAS_DATABASE_URL: ${ATLAS_DATABASE_URL:?Set the matching production database URL}
+  telegram:
+    environment:
+      ATLAS_DATABASE_URL: ${ATLAS_DATABASE_URL:?Set the matching production database URL}

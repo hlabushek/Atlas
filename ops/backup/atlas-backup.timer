@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily encrypted Atlas backup
+
+[Timer]
+OnCalendar=*-*-* 00:30:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=atlas-backup.service
+
+[Install]
+WantedBy=timers.target

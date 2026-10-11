@@ -1,0 +1,15 @@
+vosk==0.3.45
+sounddevice==0.5.6
+pycaw==20260927
+piper-tts==1.4.1
+pystray==0.19.5
+Pillow==11.3.0
+pywebview==6.2.1
+# Второй локальный ASR-этап для свободной русской речи. Модель хранится
+# отдельно в LocalAppData и не скачивается/не выбирается из ответа модели.
+faster-whisper==1.2.0
+httpx>=0.28,<1
+pydantic-settings>=2.8,<3
+pgvector>=0.5,<1
+sqlalchemy>=2.0.39,<2.1
+cryptography>=50,<51

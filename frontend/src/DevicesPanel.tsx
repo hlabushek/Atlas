@@ -1,0 +1,46 @@
+import {useEffect,useState} from 'react';
+import {api} from './api';
+type Row=Record<string,any>;type Attempt=(a:()=>Promise<void>)=>Promise<void>;
+const localDate=(d:string)=>{const date=new Date(d);return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16)};
+function DeviceCard({device,conversations,attempt,reload}:{device:Row,conversations:Row[],attempt:Attempt,reload:()=>Promise<void>}){
+ const [enabled,setEnabled]=useState(device.enabled),[roots,setRoots]=useState(device.roots.join(',')),[read,setRead]=useState(device.operations.includes('read_text')),[list,setList]=useState(device.operations.includes('list')),[create,setCreate]=useState(device.operations.includes('create_text')),[launch,setLaunch]=useState(device.operations.includes('launch_file')),[expiry,setExpiry]=useState(localDate(device.expires_at)),[history,setHistory]=useState<Row[]>([]),[voiceEnabled,setVoiceEnabled]=useState(Boolean(device.voice_enabled)),[voiceConversation,setVoiceConversation]=useState(device.voice_conversation_id||'');
+ return <article className="device" data-device-id={device.id}>
+  <small>{device.enabled?'РАЗРЕШЁН':'ОТКЛЮЧЁН'} · {device.id}</small><h3>{device.name}</h3><p>Последнее подключение: {device.last_seen?new Date(device.last_seen).toLocaleString('ru'):'ещё не подключался'}</p>
+  <details><summary>Отпечаток сертификата</summary><pre>{device.fingerprint}</pre></details>
+  <form className="memory-form" onSubmit={e=>{e.preventDefault();attempt(async()=>{await api('/devices/'+device.id,'PUT',{enabled,roots:roots.split(',').map((x:string)=>x.trim()).filter(Boolean),operations:[...(read?['read_text']:[]),...(list?['list']:[]),...(create?['create_text']:[]),...(launch?['launch_file']:[])],expires_at:new Date(expiry).toISOString()});await reload()})}}>
+   <label><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Разрешить устройство</label><label>Псевдонимы каталогов, через запятую<input aria-label="Разрешённые каталоги" value={roots} onChange={e=>setRoots(e.target.value)} placeholder="docs"/></label>
+   <label><input type="checkbox" checked={read} onChange={e=>setRead(e.target.checked)}/> Чтение текста</label><label><input type="checkbox" checked={list} onChange={e=>setList(e.target.checked)}/> Просмотр каталога</label><label><input type="checkbox" checked={create} onChange={e=>setCreate(e.target.checked)}/> Создание новых текстовых файлов без перезаписи</label><label><input type="checkbox" checked={launch} onChange={e=>setLaunch(e.target.checked)}/> Открытие файла выбранным локальным приложением</label>
+   <label>Доступ до<input aria-label="Срок доступа устройства" type="datetime-local" required value={expiry} onChange={e=>setExpiry(e.target.value)}/></label><button>Сохранить доступ</button>
+  </form>
+  <button className="secondary" onClick={()=>attempt(async()=>{await api('/devices/'+device.id,'PUT',{enabled:false,roots:[],operations:[],expires_at:device.expires_at});setEnabled(false);setVoiceEnabled(false);await reload()})}>Отозвать доступ</button>
+  <form className="memory-form" onSubmit={e=>{e.preventDefault();attempt(async()=>{await api('/devices/'+device.id+'/voice','PUT',{enabled:voiceEnabled,conversation_id:voiceConversation||null});await reload()})}}>
+   <h4>Голосовой Atlas на этом компьютере</h4><p className="hint-left">Локальные команды обрабатываются на ПК. Свободные фразы отправляются через mTLS в выбранный диалог и становятся обычными задачами Atlas.</p>
+   <label><input type="checkbox" checked={voiceEnabled} disabled={!device.enabled} onChange={e=>setVoiceEnabled(e.target.checked)}/> Разрешить этому устройству отправлять голосовые сообщения</label>
+   <label>Диалог Atlas<select aria-label="Диалог для голосовых сообщений" value={voiceConversation} onChange={e=>setVoiceConversation(e.target.value)} required={voiceEnabled}><option value="">Выберите диалог</option>{conversations.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
+   <button type="button" className="secondary" onClick={()=>attempt(async()=>{const c=await api('/conversations','POST',{title:'Голосовой Atlas · '+device.name});setVoiceConversation(c.id);await reload()})}>Создать отдельный голосовой диалог</button>
+   <button disabled={voiceEnabled&&(!device.enabled||!voiceConversation)}>Сохранить голосовой доступ</button>
+  </form>
+  <button className="secondary" onClick={()=>attempt(async()=>setHistory(await api('/devices/'+device.id+'/commands')))}>Журнал команд</button>
+  {history.map(h=><div key={h.id}><small>{h.status} · {h.id}</small><pre>{JSON.stringify(h.arguments,null,2)}</pre>{h.result&&<pre>{JSON.stringify(h.result,null,2)}</pre>}{h.error&&<p className="error">{h.error}</p>}</div>)}
+ </article>
+}
+export function Devices({attempt}:{attempt:Attempt}){
+ const [rows,setRows]=useState<Row[]>([]),[conversations,setConversations]=useState<Row[]>([]),[name,setName]=useState(''),[fingerprint,setFingerprint]=useState(''),[selected,setSelected]=useState(''),[root,setRoot]=useState('docs'),[operation,setOperation]=useState('read_text'),[path,setPath]=useState(''),[content,setContent]=useState(''),[app,setApp]=useState('notepad'),[queued,setQueued]=useState('');
+ async function load(){const [devices,chats]=await Promise.all([api('/devices'),api('/conversations')]);setRows(devices);setConversations(chats)}
+ useEffect(()=>{attempt(load);const timer=setInterval(()=>api('/devices').then(setRows).catch(()=>{}),5000);return()=>clearInterval(timer)},[]);
+ return <div className="content">
+  <div className="intro"><h2>Desktop Companion</h2><p>Устройство само подключается по mTLS. Сервер и локальная конфигурация должны разрешать каталог и действие. Чтение — до 64 КиБ, список — до 100 элементов. Создание — только новых UTF-8 TXT/MD/CSV/JSON файлов до 64 КиБ, без перезаписи существующего файла.</p></div>
+  <p className="hint-left">Сначала создайте сертификат и настройте локальный Companion по docs/DESKTOP.md. Приватный ключ остаётся на устройстве; сюда вводится только публичный SHA-256 отпечаток.</p>
+  <form className="memory-form" onSubmit={e=>{e.preventDefault();attempt(async()=>{await api('/devices','POST',{name,fingerprint:fingerprint.toLowerCase().replaceAll(':',''),expires_at:new Date(Date.now()+86400000).toISOString()});setName('');setFingerprint('');await load()})}}><input aria-label="Имя устройства" required value={name} onChange={e=>setName(e.target.value)} maxLength={100}/><input aria-label="Отпечаток сертификата устройства" required value={fingerprint} onChange={e=>setFingerprint(e.target.value)} placeholder="SHA-256 публичного сертификата"/><button>Зарегистрировать устройство</button></form>
+  {rows.map(d=><DeviceCard key={d.id} device={d} conversations={conversations} attempt={attempt} reload={load}/>)}
+   <form className="memory-form" onSubmit={e=>{e.preventDefault();attempt(async()=>{const write=operation==='create_text'||operation==='launch_file';const c=await api<{id:string}>('/conversations','POST',{title:'Устройство · '+operation});const args:Record<string,string>={device_id:selected,root,operation,path};if(operation==='create_text')args.content=content;if(operation==='launch_file')args.app=app;const t=await api<{id:string}>('/tasks','POST',{conversation_id:c.id,request_key:crypto.randomUUID(),goal:operation==='create_text'?'Создать новый текстовый файл '+path:operation==='launch_file'?'Открыть файл '+path+' приложением '+app:'Прочитать разрешённый файл или каталог устройства',plan:[{tool:write?'desktop.write':'desktop.read',arguments:args}]});setQueued(t.id)})}}>
+   <h3>Запросить действие на устройстве</h3><p className="hint-left">Выдайте соответствующий desktop.read или desktop.write доступ в Инструментах, устройству — разрешённую операцию, затем подтвердите конкретный вызов. Создание файла никогда не перезаписывает существующий файл.</p>
+   <select aria-label="Устройство для действия" required value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Выберите устройство</option>{rows.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select><input aria-label="Каталог устройства" required value={root} onChange={e=>setRoot(e.target.value)}/>
+   <select aria-label="Операция устройства" value={operation} onChange={e=>setOperation(e.target.value)}><option value="read_text">Чтение текста</option><option value="list">Просмотр каталога</option><option value="create_text">Создать новый текстовый файл</option><option value="launch_file">Открыть файл локальным приложением</option></select>
+   <input aria-label="Относительный путь" value={path} onChange={e=>setPath(e.target.value)} placeholder="notes/example.txt" required={operation!=='list'}/>
+   {operation==='create_text'&&<textarea aria-label="Содержимое нового файла" value={content} onChange={e=>setContent(e.target.value)} maxLength={65536} required placeholder="Содержимое, до 64 КиБ"/>}
+   {operation==='launch_file'&&<input aria-label="Псевдоним локального приложения" value={app} onChange={e=>setApp(e.target.value)} required placeholder="notepad"/>}
+   <button disabled={!selected}>{operation==='create_text'?'Поставить создание в очередь':'Создать запрос устройства'}</button>{queued&&<p role="status">Создана задача {queued}. Проверьте точное действие в Подтверждениях и результат в Активности.</p>}
+  </form>
+ </div>
+}

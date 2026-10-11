@@ -1,0 +1,26 @@
+services:
+  migrate:
+    environment:
+      ATLAS_MODEL_PROVIDER: demo
+      ATLAS_ROUTERAI_API_KEY: ""
+      ATLAS_PLUSVIBE_API_KEY: ""
+  api:
+    environment:
+      ATLAS_MODEL_PROVIDER: demo
+      ATLAS_ROUTERAI_API_KEY: ""
+      ATLAS_PLUSVIBE_API_KEY: ""
+  worker:
+    environment:
+      ATLAS_MODEL_PROVIDER: demo
+      ATLAS_ROUTERAI_API_KEY: ""
+      ATLAS_PLUSVIBE_API_KEY: ""
+  scheduler:
+    environment:
+      ATLAS_MODEL_PROVIDER: demo
+      ATLAS_ROUTERAI_API_KEY: ""
+      ATLAS_PLUSVIBE_API_KEY: ""
+  telegram:
+    environment:
+      ATLAS_MODEL_PROVIDER: demo
+      ATLAS_ROUTERAI_API_KEY: ""
+      ATLAS_PLUSVIBE_API_KEY: ""

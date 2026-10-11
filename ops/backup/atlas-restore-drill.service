@@ -1,0 +1,23 @@
+[Unit]
+Description=Restore latest encrypted Atlas backup to a disposable database
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+RuntimeDirectory=atlas-restore-drill
+RuntimeDirectoryMode=0700
+Environment=GNUPGHOME=/run/atlas-restore-drill
+ExecStart=/usr/local/sbin/atlas-restore-drill
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/atlas/backups/encrypted
+ReadOnlyPaths=/opt/atlas/app
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_CHOWN
+LockPersonality=true
+RestrictSUIDSGID=true

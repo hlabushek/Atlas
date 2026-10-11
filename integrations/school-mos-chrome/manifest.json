@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Atlas · Универсальные источники",
+  "version": "0.3.0",
+  "description": "Создаёт проверяемые адаптеры страниц и переносит выбранные данные в Atlas.",
+  "permissions": ["activeTab", "scripting", "tabs", "storage", "alarms"],
+  "optional_permissions": ["cookies"],
+  "host_permissions": ["https://atlas.prism-news.xyz/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_title": "Настроить источник для Atlas", "default_popup": "popup.html"}
+}

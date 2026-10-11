@@ -1,0 +1,19 @@
+services:
+  desktop-gateway:
+    image: atlas-api
+    env_file: /opt/atlas/app/.env
+    command: [python, -m, atlas.desktop_gateway]
+    environment:
+      ATLAS_DESKTOP_HOST: 0.0.0.0
+      ATLAS_DESKTOP_PORT: "9443"
+      ATLAS_DESKTOP_CERT: /run/atlas/desktop/server.pem
+      ATLAS_DESKTOP_KEY: /run/atlas/desktop/server.key
+      ATLAS_DESKTOP_CA: /run/atlas/desktop/ca.pem
+    volumes:
+      - /opt/atlas/certs/desktop:/run/atlas/desktop:ro
+    ports:
+      - "9443:9443"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped

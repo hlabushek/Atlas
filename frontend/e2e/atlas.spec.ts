@@ -1,0 +1,23 @@
+import {test,expect} from '@playwright/test';
+test('owner chats, reloads and deletes memory',async({page})=>{
+ test.skip(!process.env.ATLAS_E2E_PASSWORD,'Set ATLAS_E2E_PASSWORD; API and worker must be running');
+ await page.goto('/');
+ await page.getByLabel('Пароль владельца').fill(process.env.ATLAS_E2E_PASSWORD!);
+ await page.getByRole('button',{name:'Войти в Atlas'}).click();
+ await page.getByRole('button',{name:'Память',exact:true}).click();
+ const fact='E2E проект '+Date.now();
+ await page.getByLabel('Воспоминание',{exact:true}).fill(fact);
+ await page.getByRole('button',{name:'Добавить в память'}).click();
+ await expect(page.locator('.memory-grid')).toContainText(fact);
+ await page.getByRole('button',{name:'Разговор',exact:true}).click();
+ await page.getByLabel('Сообщение',{exact:true}).fill(fact);
+ await page.getByRole('button',{name:'Отправить'}).click();
+ await expect(page.locator('article.assistant').last()).toContainText(fact,{timeout:30000});
+ await page.reload();
+ await page.locator('.conversation-list').getByRole('button',{name:fact,exact:true}).click();
+ await expect(page.locator('article.assistant').last()).toContainText(fact);
+ await page.getByRole('button',{name:'Память',exact:true}).click();
+ const card=page.locator('.memory-grid article').filter({hasText:fact});
+ await card.getByRole('button',{name:'Удалить'}).click();
+ await expect(page.locator('.memory-grid')).not.toContainText(fact);
+});

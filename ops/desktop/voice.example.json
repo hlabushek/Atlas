@@ -1,0 +1,59 @@
+{
+  "enabled": true,
+  "model_path": "C:/Users/OWNER/AppData/Local/Atlas/Voice/Models/vosk-model-small-ru-0.22",
+  "tts_model_path": "C:/Users/OWNER/AppData/Local/Atlas/Voice/TTS/ru_RU-dmitri-medium.onnx",
+  "sample_rate": 16000,
+  "wake_words": ["атлас"],
+  "companion_config": "%LOCALAPPDATA%/Atlas/Companion/companion.json",
+  "speak_responses": true,
+  "voice_interrupt_enabled": false,
+  "voice_center_enabled": true,
+  "voice_sse_enabled": true,
+  "network_mode": "atlas",
+  "store_transcripts": true,
+  "speak_sensitive": false,
+  "session_context_seconds": 60,
+  "default_mode": "chat",
+  "device_index": -1,
+  "activation_mode": "wake_word",
+  "ptt_key": "F8",
+  "min_confidence": 0.55,
+  "free_speech_enabled": true,
+  "free_speech_model_path": "C:/Users/OWNER/AppData/Local/Atlas/Voice/Models/whisper-small-ru",
+  "free_speech_device": "auto",
+  "free_speech_compute_type": "int8",
+  "follow_up_seconds": 0,
+  "confirmation_timeout_seconds": 12,
+  "vad_enabled": true,
+  "silence_timeout_ms": 650,
+  "confirm_local_actions": true,
+  "test_mode": false,
+  "reply_timeout_seconds": 90,
+  "tts_length_scale": 0.94,
+  "show_command_pill": true,
+  "command_pill_seconds": 5,
+  "sites": {
+    "дневник": "https://school.mos.ru/diary",
+    "атлас": "https://atlas.prism-news.xyz"
+  },
+  "site_phrases": {
+    "дневник": ["открой школьный дневник", "покажи дневник", "перейди на дневник", "зайди в школьный дневник"],
+    "атлас": ["открой сайт атлас", "покажи atlas", "перейди на сайт atlas", "зайди на атлас"]
+  },
+  "applications": {
+    "блокнот": {
+      "executable": "C:/Windows/System32/notepad.exe",
+      "phrases": ["открой блокнот", "запусти блокнот", "открой приложение блокнот", "можешь открыть блокнот"]
+    }
+  },
+  "scenarios": [
+    {
+      "name": "Рабочий режим",
+      "phrases": ["начни рабочий режим", "включи рабочий режим", "пора работать", "перейди в рабочий режим"],
+      "actions": [
+        {"type": "volume_set", "percent": 35},
+        {"type": "open_site", "site": "атлас"}
+      ]
+    }
+  ]
+}

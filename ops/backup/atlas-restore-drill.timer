@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly Atlas backup restore verification
+
+[Timer]
+OnCalendar=Sun *-*-* 23:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=atlas-restore-drill.service
+
+[Install]
+WantedBy=timers.target

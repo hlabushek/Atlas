@@ -1,0 +1,92 @@
+import {test,expect} from '@playwright/test';
+import {openPanel} from './navigation';
+test('files attach to durable chat and budget/ops remain owner only',async({page,request})=>{
+ test.skip(!process.env.ATLAS_E2E_PASSWORD,'Owner password required');
+ expect((await request.get('/api/ops')).status()).toBe(401);
+ await page.goto('/');await page.getByLabel('Пароль владельца').fill(process.env.ATLAS_E2E_PASSWORD!);await page.getByRole('button',{name:'Войти в Atlas'}).click();
+ await openPanel(page,'Лимиты');
+ await expect(page.getByRole('heading',{name:'Бюджет и лимиты (UTC)'})).toBeVisible();
+ await openPanel(page,'Данные');
+ const marker='Файл E2E '+Date.now();
+ await page.getByLabel('Загрузить файл').setInputFiles({name:'e2e.txt',mimeType:'text/plain',buffer:Buffer.from(marker)});
+ await expect(page.getByRole('paragraph').filter({hasText:'e2e.txt'}).getByRole('link',{name:'Скачать',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Разговор',exact:true}).click();
+ await page.getByRole('button',{name:'Из библиотеки',exact:true}).click();
+ await page.getByRole('button',{name:/e2e.txt ·/}).click();
+ await page.getByLabel('Сообщение',{exact:true}).fill('Прочитай файл');await page.getByRole('button',{name:'Отправить'}).click();
+ await expect(page.locator('article.assistant').last()).toContainText(marker,{timeout:30000});
+ await openPanel(page,'Данные');
+ await page.getByRole('paragraph').filter({hasText:'e2e.txt'}).getByRole('button',{name:'Удалить файл',exact:true}).click();
+});
+test('PWA shell does not cache authenticated API data',async({page})=>{
+ await page.goto('/');
+ await expect.poll(()=>page.evaluate(async()=>Boolean((await navigator.serviceWorker.getRegistration())?.active))).toBe(true);
+ const manifest=await page.request.get('/manifest.webmanifest');expect((await manifest.json()).display).toBe('standalone');
+ await page.request.get('/api/health');
+ const keys=await page.evaluate(async()=>{const keys=[];for(const n of await caches.keys())for(const r of await (await caches.open(n)).keys())keys.push(new URL(r.url).pathname);return keys});
+ expect(keys.some(k=>k.startsWith('/api'))).toBe(false);
+});
+
+test('owner imports a public JSON source manifest through integrations',async({page})=>{
+ test.skip(!process.env.ATLAS_E2E_PASSWORD,'Owner password required');
+ await page.goto('/');await page.getByLabel('Пароль владельца').fill(process.env.ATLAS_E2E_PASSWORD!);await page.getByRole('button',{name:'Войти в Atlas'}).click();
+ await openPanel(page,'Интеграции');
+ const id='e2e-photo-'+Date.now();
+ const manifest={id,name:'Фотографии E2E',origin:'https://example.org/data.json',recipe:{kind:'public_json',collection:'albums',items:'photos',key:'image_url',fields:{image_url:'full',title:'alt'}}};
+ await page.getByLabel('Файл конфигурации источника').setInputFiles({name:'source.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(manifest))});
+ await expect(page.getByRole('heading',{name:'Фотографии E2E · 0 записей'})).toBeVisible();
+ await expect(page.getByRole('status')).toContainText('добавлен');
+ const source=page.getByRole('heading',{name:'Фотографии E2E · 0 записей'}).locator('..');
+ await source.getByRole('button',{name:'Отключить источник'}).click();
+ await expect(source).toContainText('ВЫКЛЮЧЕН');
+ await expect(source).toContainText('Агенту чтение запрещено');
+ await source.getByRole('button',{name:'Показать записи'}).click();
+ await expect(page.getByRole('status')).toContainText('"records": []');
+});
+
+test('owner creates a scoped write action and denies its pending run',async({page})=>{
+ test.skip(!process.env.ATLAS_E2E_PASSWORD,'Owner password required');
+ await page.goto('/');await page.getByLabel('Пароль владельца').fill(process.env.ATLAS_E2E_PASSWORD!);await page.getByRole('button',{name:'Войти в Atlas'}).click();
+ await expect.poll(async()=> (await page.request.get('/api/connectors')).status()).toBe(200);
+ const id='e2e-action-'+Date.now();const headers={'X-Atlas-Client':'web'};
+ const created=await page.request.post('/api/connectors',{headers,data:{id,name:'Источник действий E2E',origin:'https://example.org/tasks',recipe:{rows:'article.card',key:'id',fields:{id:'.id',title:'h2'}}}});
+ expect(created.status()).toBe(200);
+ const transferred=await page.request.put('/api/connectors/'+id+'/session',{headers,data:{cookies:[{name:'sid',value:'isolated-e2e-session'}]}});
+ expect(transferred.status()).toBe(200);
+ await openPanel(page,'Интеграции');
+ await page.getByLabel('Источник действия').selectOption(id);
+ await page.getByLabel('Название действия').fill('Проверить запись E2E');
+ await page.getByLabel('Адрес записи').fill('https://example.org/api/status');
+ await page.getByLabel('Тело действия').fill('{"status":"done"}');
+ await page.getByLabel('Адрес проверки').fill('https://example.org/api/status');
+ await page.getByLabel('Поле проверки').fill('status');
+ await page.getByLabel('Ожидаемое значение').fill('done');
+ await page.getByRole('button',{name:'Сохранить действие'}).click();
+ await expect(page.getByRole('heading',{name:'Проверить запись E2E · включено'})).toBeVisible();
+ await page.getByRole('button',{name:'Запросить запуск'}).click();
+ await expect(page.getByText('ожидает разрешения')).toBeVisible();
+ await page.getByRole('button',{name:'Отклонить'}).click();
+ await expect(page.getByText('отклонён')).toBeVisible();
+});
+
+test('owner opens isolated browser login and closes it without saving',async({page})=>{
+ test.skip(!process.env.ATLAS_E2E_PASSWORD,'Owner password required');
+ await page.goto('/');await page.getByLabel('Пароль владельца').fill(process.env.ATLAS_E2E_PASSWORD!);await page.getByRole('button',{name:'Войти в Atlas'}).click();
+ await expect.poll(async()=> (await page.request.get('/api/connectors')).status()).toBe(200);
+ const id='e2e-browser-'+Date.now();const headers={'X-Atlas-Client':'web'};
+ const created=await page.request.post('/api/connectors',{headers,data:{id,name:'Браузер E2E',origin:'https://example.org/private',recipe:{rows:'article.card',key:'id',fields:{id:'.id',title:'h2'}}}});
+ expect(created.status()).toBe(200);
+ const mode=await page.request.put('/api/connectors/'+id+'/fetch-mode',{headers,data:{mode:'browser'}});expect(mode.status()).toBe(200);
+ const screenshot='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLytQAAAABJRU5ErkJggg==';
+ await page.route('**/api/connectors/'+id+'/browser/start',route=>route.fulfill({json:{url:'https://example.org/private',title:'Вход',screenshot}}));
+ await page.route('**/api/connectors/'+id+'/browser/step',route=>route.fulfill({json:{url:'https://example.org/private',title:'Вход',screenshot}}));
+ await page.route('**/api/connectors/'+id+'/browser',route=>route.fulfill({json:{closed:true}}));
+ await openPanel(page,'Интеграции');
+ const panel=page.getByRole('heading',{name:'Браузер VPS · Браузер E2E'}).locator('..');
+ await panel.getByRole('button',{name:'Открыть вход на VPS'}).click();
+ await expect(panel.getByAltText('Страница браузера VPS')).toBeVisible();
+ await panel.getByLabel('Текст для браузера VPS').fill('example-password');
+ await panel.getByRole('button',{name:'Ввести в выбранное поле'}).click();
+ await panel.getByRole('button',{name:'Закрыть без сохранения'}).click();
+ await expect(panel.getByAltText('Страница браузера VPS')).toHaveCount(0);
+});

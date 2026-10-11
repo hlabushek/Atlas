@@ -1,0 +1,15 @@
+.env
+*.db
+__pycache__/
+.pytest_cache/
+*.db-*
+
+.sessions/
+*.session.enc
+
+*.key
+*.pfx
+companion*.json
+
+*.egg-info/
+build/

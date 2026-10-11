@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atlas-companion"
+version = "0.1.0"
+description = "Исходящий mTLS Companion Atlas с явным доступом к каталогам"
+requires-python = ">=3.12"
+dependencies = ["httpx>=0.28,<1", "pydantic-settings>=2.8,<3", "pgvector>=0.5,<1", "sqlalchemy>=2.0.39,<2.1", "cryptography>=50,<51"]
+
+[project.optional-dependencies]
+voice = ["vosk==0.3.45", "faster-whisper==1.2.0", "sounddevice==0.5.6", "pycaw==20260927", "piper-tts==1.4.1", "pystray==0.19.5", "Pillow==11.3.0", "pywebview==6.2.1"]
+voice-gpu = ["faster-whisper==1.2.0", "nvidia-cublas-cu12==12.9.2.10; sys_platform == 'win32'", "nvidia-cudnn-cu12==9.27.0.42; sys_platform == 'win32'"]
+
+[project.scripts]
+atlas-companion = "atlas.companion:main"
+atlas-voice = "atlas.local_voice:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["atlas*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+# Единый gate для новых ошибок корректности; историческое форматирование
+# постепенно выносится в отдельные этапы, чтобы не смешивать его с рефакторингом.
+select = ["E9", "F401"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+follow_imports = "skip"
+warn_redundant_casts = true
+warn_unused_ignores = true
+exclude = "atlas/companion_fs.py"

@@ -1,0 +1,68 @@
+.attachment-composer{display:flex;flex-direction:column;gap:5px;position:relative;flex-shrink:0}
+.composer-row{display:flex;align-items:flex-end;gap:8px;min-width:0}
+.composer-row textarea{flex:1;min-width:0;font-size:16px}
+.composer .attach-button{width:44px;height:44px;padding:0;font-size:27px;background:var(--wash);color:var(--text);flex-shrink:0}
+.attachment-help{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.attachment-help small,.file-privacy{font-size:10px;letter-spacing:0;color:var(--muted);line-height:1.5}
+.composer .attachment-help button{padding:4px 5px;margin:0;font-size:11px;background:transparent;color:var(--muted)}
+.draft-files{display:flex;gap:8px;overflow-x:auto;padding:4px 0;max-height:168px;align-items:flex-start}
+.file-card{display:flex;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--border);border-radius:12px;min-width:0;overflow:hidden}
+.draft-files .file-card{flex:0 0 245px}
+.file-card .file-open{display:flex;align-items:center;gap:9px;flex:1;min-width:0;color:var(--text);background:transparent!important;text-align:left;padding:9px!important;margin:0!important}
+.file-open>span:last-child{min-width:0;flex:1}
+.file-card strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}
+.file-card small{display:block;font-size:10px!important;letter-spacing:0!important;line-height:1.5;margin-top:3px}
+.file-icon{display:grid;place-items:center;width:38px;height:42px;border-radius:8px;background:var(--wash);font-size:9px;flex-shrink:0;color:var(--muted)}
+.file-card>button:not(.file-open),.file-card>a{flex:0 0 38px;color:var(--muted);background:transparent;margin:0;padding:10px;text-decoration:none;text-align:center}
+.file-error{width:100%;font-size:11px;padding:0 10px 8px;color:var(--text);overflow-wrap:anywhere}
+.file-error button{background:var(--wash)!important;color:var(--text);font-size:11px;padding:5px 8px!important;margin:4px 0 0!important}
+.file-card.error{border-color:#ba6565}.file-open:disabled{opacity:1}
+.file-notice{font-size:12px;color:#b35a5a;margin:3px 0}.file-privacy{margin:1px 0 0}
+.message-files{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.message-files .file-card{width:280px;max-width:100%}
+.dragging{outline:2px dashed var(--accent);outline-offset:3px}.drop-hint{font-size:13px;color:var(--accent);padding:4px}
+.file-preview{width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:22px;border:1px solid var(--border);border-radius:18px;background:var(--panel);color:var(--text);overflow:auto}
+.file-preview::backdrop{background:#1119;backdrop-filter:blur(3px)}
+.file-preview header{align-items:flex-start}.file-preview h2{font-size:18px;margin:0;overflow-wrap:anywhere}.file-preview header>div{min-width:0}
+.file-preview header button{padding:0;width:44px;height:44px;flex-shrink:0;background:var(--wash);color:var(--text)}
+.file-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.7 monospace;max-height:60dvh;overflow:auto;padding:14px;border:1px solid var(--border);border-radius:10px}
+.file-preview a{color:var(--text)}.library-file{display:block;width:100%;text-align:left;background:var(--wash);color:var(--text);margin:8px 0;overflow-wrap:anywhere}
+.file-icon img{width:100%;height:100%;object-fit:cover;border-radius:8px}.file-image-preview{display:block;width:100%;max-height:60dvh;object-fit:contain;margin:14px 0;border-radius:10px}
+.file-card button,.file-preview header button,.library-file,.composer .attach-button{color:var(--text)!important}
+@media(max-width:760px){.composer-row{gap:4px}.composer-row textarea{padding:9px 6px}.composer-row>button:last-child{font-size:0;width:44px;height:44px;padding:0}.composer-row>button:last-child:after{content:'↑';font-size:23px}.attachment-help{gap:6px}.attachment-help small{font-size:9px;max-width:65%}.file-privacy{font-size:9px}.file-preview{padding:15px}.draft-files .file-card{flex-basis:225px}.composer .attachment-help button{min-height:32px}.file-card>button:not(.file-open),.file-card>a{min-height:44px}}
+
+/* Поле во всю ширину, компактная единая панель действий. */
+.attachment-composer{padding:12px 14px;gap:5px;border-radius:20px}
+.attachment-composer .composer-row{display:block;width:100%}
+.attachment-composer .composer-row textarea{display:block;width:100%;height:70px;min-height:56px;max-height:180px;padding:10px 4px;line-height:1.5;resize:vertical;font-size:16px}
+.attachment-toolbar{display:flex;align-items:center;gap:5px;min-width:0}
+.composer .attachment-toolbar button{display:grid;place-items:center;align-self:center;width:44px;height:44px;min-height:44px;flex:0 0 44px;padding:0;margin:0;background:transparent;color:var(--muted);border-radius:12px}
+.composer .attachment-toolbar .attach-button{font-size:28px;background:var(--wash)}
+.composer .attachment-toolbar .send-button{margin-left:auto;background:var(--accent);color:var(--bg);font-size:25px;border-radius:50%}
+.composer .attachment-toolbar .send-button:disabled{opacity:.45}
+.composer-model{font-size:13px;height:40px;min-width:60px;max-width:170px;flex:1 1 auto;padding:5px 8px;border:0;background:transparent;border-radius:10px;color:var(--text)}
+.composer .file-info-button{font-family:Georgia,serif;font-style:italic;font-size:19px}
+.attachment-composer .draft-files{padding:0 0 3px;max-height:140px}
+.draft-files .file-card{flex-basis:224px;border-radius:11px}
+.draft-files .file-icon{width:32px;height:36px}
+.draft-files .file-open{padding:7px 8px!important}
+.draft-files .file-card strong{font-size:12px}
+.image-route{padding:2px 3px;margin:0;font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+.image-route.incompatible{font-size:12px;color:var(--text);padding:5px 3px}
+.image-route button{padding:4px 8px;margin:0;font-size:12px;background:var(--wash)}
+.attachment-info-dialog{max-width:590px;font-size:14px;line-height:1.65}
+.attachment-info-dialog dt{font-weight:600;margin-top:14px}.attachment-info-dialog dd{margin:4px 0;color:var(--muted)}
+.chat-extras-disclosure>summary{display:block;cursor:pointer;color:var(--muted);font-size:11px;padding:9px 4px}
+.chat-extras-disclosure{flex-shrink:0;margin:4px 0 0}
+.chat>.hint{margin:2px 0 6px}
+@media(max-width:760px){
+ .attachment-composer{padding:8px 10px;border-radius:18px}
+ .attachment-composer .composer-row textarea{height:60px;max-height:120px;padding:8px 2px}
+ .attachment-toolbar{gap:2px}
+ .composer-model{max-width:140px;font-size:13px;padding:4px 5px}
+ .draft-files .file-card{flex-basis:214px}
+ .attachment-composer .draft-files{max-height:116px}
+ .image-route{font-size:10px}
+ .chat-layout{min-height:0!important}
+ .chat .messages{min-height:0!important}
+ .chat-extras-disclosure>summary{min-height:32px;padding:8px 2px;font-size:11px}
+}
