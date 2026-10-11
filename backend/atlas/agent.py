@@ -5,9 +5,10 @@ from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from sqlalchemy import select
 from .db import sessions
-from .models import Task, ToolCall, Approval, ToolGrant, ConnectorSource, Audit, Message
+from .models import Task, ToolCall, Approval, ToolGrant, ConnectorSource, Audit, Message, now
 from .tools import get_tool, validate_plan
 from .integration_permissions import grant_valid
+from .answer_stream import publish_tool
 
 class State(TypedDict):
     task_id: str
@@ -17,8 +18,10 @@ class State(TypedDict):
 class StaleClaim(Exception):pass
 
 def owned(session,state):
+    from .notifications import utc
     task=session.scalar(select(Task).where(Task.id==state["task_id"]).with_for_update())
-    if task is None or task.claim!=state["claim"] or task.status not in {"PLANNING","RUNNING"}:
+    if (task is None or task.claim!=state["claim"] or task.status not in {"PLANNING","RUNNING"}
+            or task.lease_until is None or utc(task.lease_until)<=now()):
         raise StaleClaim()
     return task
 
@@ -57,6 +60,7 @@ def execute_node(state):
             session.add(call);session.flush()
             session.add(Audit(task_id=task.id,event="tool_prepared",details={"call_id":call.id,"tool":tool.name,"step":call.step}))
         call_id=call.id
+        publish_tool(session,task,call,state['claim'],'PREPARED','tool_call')
         session.commit()  # PREPARED is durable before action.
     try:
         with sessions()() as session:
@@ -69,7 +73,7 @@ def execute_node(state):
                 task.current_step+=1;session.commit();return {"continue_run":True}
             if call.status in {"STARTED","UNKNOWN"} or tool.execution not in {"read","atomic","device"}:
                 # No blind replay of ambiguous/non-atomic actions.
-                call.status="UNKNOWN";release(task,"PAUSED");task.error="Неизвестный результат действия: требуется проверка, повтор запрещён"
+                call.status="UNKNOWN";publish_tool(session,task,call,state['claim'],'UNKNOWN');release(task,"PAUSED");task.error="Неизвестный результат действия: требуется проверка, повтор запрещён"
                 session.add(Audit(task_id=task.id,event="reconciliation_required",details={"call_id":call.id}));session.commit()
                 return {"continue_run":False}
             from .skills import skill_for_tool
@@ -79,18 +83,35 @@ def execute_node(state):
             if task.dry_run:
                 call.status="DRY_RUN";call.result={"dry_run":True,"tool":tool.name,"arguments":call.arguments,"requires_approval":tool.requires_approval}
             elif not grant_valid(grant,source if isinstance(source,ConnectorSource) else None):
-                call.status="BLOCKED";release(task,"FAILED");task.error="Разрешение инструмента отозвано"
+                call.status="BLOCKED";publish_tool(session,task,call,state['claim'],'BLOCKED');release(task,"FAILED");task.error="Разрешение инструмента отозвано"
                 session.add(Audit(task_id=task.id,event="permission_denied",details={"tool":tool.name}));session.commit()
                 return {"continue_run":False}
             elif tool.capability.confirmation == 'always' and (approval is None or approval.status!="APPROVED"):
                 if approval is None:session.add(Approval(call_id=call.id,task_id=task.id,reason="Разрешить этот вызов: "+tool.description))
-                call.status="WAITING_APPROVAL";release(task,"WAITING_APPROVAL")
+                call.status="WAITING_APPROVAL";publish_tool(session,task,call,state['claim'],'WAITING_APPROVAL');release(task,"WAITING_APPROVAL")
                 session.add(Audit(task_id=task.id,event="approval_requested",details={"call_id":call.id}));session.commit()
                 return {"continue_run":False}
             elif tool.execution=='device':
                 tool.execute(session,call);call.status='STARTED';call.attempts+=1
+                publish_tool(session,task,call,state['claim'],'WAITING_DEVICE')
                 release(task,'WAITING_DEVICE');session.commit();return {'continue_run':False}
             else:
+                # Publish the start before slow work, while effects/checkpoint still
+                # share the next transaction. PREPARED remains safe after a crash.
+                publish_tool(session,task,call,state['claim'],'STARTED')
+                session.commit()
+                task=owned(session,state)
+                call=session.get(ToolCall,call_id)
+                source=skill_for_tool(session,tool.name)
+                grant=session.scalar(select(ToolGrant).where(ToolGrant.tool==tool.name).with_for_update())
+                approval=session.scalar(select(Approval).where(Approval.call_id==call.id))
+                if not grant_valid(grant,source if isinstance(source,ConnectorSource) else None):
+                    call.status='BLOCKED';publish_tool(session,task,call,state['claim'],'BLOCKED')
+                    release(task,'FAILED');task.error='Разрешение инструмента отозвано'
+                    session.add(Audit(task_id=task.id,event='permission_denied',details={'tool':tool.name}))
+                    session.commit();return {'continue_run':False}
+                if tool.capability.confirmation=='always' and (approval is None or approval.status!='APPROVED'):
+                    raise StaleClaim()
                 call.status="STARTED";call.attempts+=1
                 # Built-ins act inside this transaction; crash rolls back effect and checkpoint together.
                 result=tool.execute(session,call)
@@ -98,6 +119,7 @@ def execute_node(state):
                 call.result=result;call.status="SUCCEEDED"
                 if approval:approval.status="CONSUMED"
             task.current_step+=1
+            publish_tool(session,task,call,state['claim'],call.status)
             session.add(Audit(task_id=task.id,event="tool_verified" if not task.dry_run else "tool_previewed",details={"call_id":call.id}))
             session.commit()
         return {"continue_run":True}
@@ -108,8 +130,11 @@ def execute_node(state):
             call.attempts+=1;call.error="Ошибка инструмента: "+type(exc).__name__
             # Only read/DB-atomic effects can safely retry after rolled-back transaction.
             if call.attempts<3 and tool.execution in {"read","atomic"}:
+                publish_tool(session,task,call,state['claim'],'RETRYING')
                 call.status="PREPARED";release(task,"PENDING")
-            else:call.status="FAILED";release(task,"FAILED");task.error=call.error
+            else:
+                call.status="FAILED";publish_tool(session,task,call,state['claim'],'FAILED')
+                release(task,"FAILED");task.error=call.error
             session.add(Audit(task_id=task.id,event="tool_failed",details={"call_id":call.id,"attempt":call.attempts,"type":type(exc).__name__}));session.commit()
         return {"continue_run":False}
 

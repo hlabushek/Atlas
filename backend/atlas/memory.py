@@ -1,27 +1,19 @@
 import re
-from sqlalchemy import func,or_,select
-from .models import Memory
+from .models import Memory, MemoryFact
+from .hybrid_search import lexical, rrf
 
 CATEGORIES = {"PROFILE", "EPISODIC", "PROJECTS", "RELATIONSHIPS", "PREFERENCES", "TASKS", "KNOWLEDGE", "AGENT_HISTORY"}
 
 def retrieve(session, query, limit=6, offset=0):
-    # Literal token matching, never interpolate into SQL LIKE patterns.
-    words = set(re.findall(r"\w{3,}", query.lower()))
-    statement=select(Memory).order_by(Memory.confirmed_at.desc()).limit(1000)
-    if words:
-        statement=statement.where(or_(*(func.lower(Memory.content).contains(word) for word in words)))
-    rows = session.scalars(statement).all()
-    ranked = sorted(((sum(w in row.content.lower() for w in words), row) for row in rows), key=lambda pair: pair[0], reverse=True)
     from .embeddings import ranked as semantic
-    from .models import MemoryFact
-    lexical=[row.id for score,row in ranked if score>0]
-    scores: dict[str, float] = {}
-    for order in (lexical,semantic(session,query)):
-        for rank,identifier in enumerate(order):scores[identifier]=scores.get(identifier,0)+1/(60+rank)
+    if limit <= 0 or offset < 0 or not query.strip() or contains_secret(query):return []
+    session.flush()
+    order = rrf(lexical(session, query, Memory, [Memory.content], 'memories_fts'), semantic(session, query))
     result=[]
-    for identifier in sorted(scores,key=lambda value: scores[value],reverse=True):
+    for identifier in order:
         fact=session.get(MemoryFact,identifier)
-        if fact is None or fact.active:result.append(session.get(Memory,identifier))
+        row=session.get(Memory,identifier)
+        if row is not None and (fact is None or fact.active):result.append(row)
     return result[offset:offset+limit]
 
 def known_secrets():

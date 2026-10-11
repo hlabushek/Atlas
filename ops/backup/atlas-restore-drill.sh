@@ -29,5 +29,5 @@ gpg --batch --pinentry-mode loopback --passphrase-file "$KEY_FILE" --decrypt "$b
 revision=$("${PROJECT[@]}" exec -T postgres psql -U atlas -d "$database" -At -v ON_ERROR_STOP=1 -c 'SELECT version_num FROM alembic_version')
 tables=$("${PROJECT[@]}" exec -T postgres psql -U atlas -d "$database" -At -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
 # Архивы прежних выпусков пригодны; новые миграции поэтапно добавляют таблицы.
-[[ "$revision" =~ ^(001[1-9]|002[0-4])$ && "$tables" -ge 30 ]] || { echo "Restore drill verification failed" >&2; exit 1; }
+[[ "$revision" =~ ^(001[1-9]|002[0-5])$ && "$tables" -ge 30 ]] || { echo "Restore drill verification failed" >&2; exit 1; }
 echo "PASS: encrypted backup restored into an isolated temporary database (revision $revision, $tables tables)"

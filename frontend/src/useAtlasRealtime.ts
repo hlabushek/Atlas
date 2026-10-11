@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { Message, Task, TaskStatusSnapshot } from "./types";
+import { Message, Task, TaskStatusSnapshot, ToolProgressEvent } from "./types";
 
 interface RealtimeOptions {
   enabled: boolean;
@@ -26,6 +26,7 @@ export function useAtlasRealtime({
     let stopped = false;
     let socket: WebSocket | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const progress = new Map<string, ToolProgressEvent[]>();
 
     const connect = () => {
       socket = new WebSocket(
@@ -35,13 +36,24 @@ export function useAtlasRealtime({
       );
       socket.onopen = () => setConnected(true);
       socket.onmessage = (event) => {
-        let payload: { type?: string; tasks?: TaskStatusSnapshot[] };
+        if (stopped) return;
+        let payload: { type?: string; tasks?: TaskStatusSnapshot[]; events?: ToolProgressEvent[] };
         try {
           payload = JSON.parse(event.data) as {
             type?: string;
             tasks?: TaskStatusSnapshot[];
+            events?: ToolProgressEvent[];
           };
         } catch {
+          return;
+        }
+        if (payload.type === 'tool_events' && Array.isArray(payload.events)) {
+          progress.clear();
+          for (const item of payload.events) {
+            if (typeof item.task_id !== 'string' || typeof item.id !== 'number') continue;
+            progress.set(item.task_id, [...(progress.get(item.task_id) || []), item].slice(-64));
+          }
+          onTasks(current => current.map(task => ({...task, tool_events: progress.get(task.id) || []})));
           return;
         }
         if (payload.type !== "tasks" || !payload.tasks) return;
@@ -62,12 +74,12 @@ export function useAtlasRealtime({
           const byId = new Map(snapshot.map((item) => [item.id, item]));
           return current.map((task) => {
             const update = byId.get(task.id);
-            return update ? { ...task, ...update } : task;
+            return update ? { ...task, ...update, tool_events: progress.get(task.id) || [] } : task;
           });
         });
         if (hasUnknownTask) {
           api<Task[]>("/tasks?limit=100")
-            .then((tasks) => {if(!stopped)onTasks(() => tasks)})
+            .then((tasks) => {if(!stopped)onTasks(() => tasks.map(task=>({...task,tool_events:progress.get(task.id)||[]})))})
             .catch(() => {});
         }
         if (activeConversationChanged && conversationId) {

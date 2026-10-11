@@ -5,7 +5,7 @@ from sqlalchemy import select, delete
 from . import models as m
 
 TABLES = [m.PushDelivery,m.Delivery,m.Message,m.Initiative,m.Event,m.StudyTask,m.Assignment,
-          m.SpaceConversation,m.VoiceRequest,m.AnswerFragment,m.Approval,m.Note,m.ToolCall,m.Task,
+          m.SpaceConversation,m.VoiceRequest,m.AnswerFragment,m.ToolEvent,m.Approval,m.Note,m.ToolCall,m.Task,
           m.Conversation,m.SpaceMemory,m.Embedding,m.MemoryConflict,m.MemoryFact,m.Memory,m.DemoHomework,m.Skill]
 DIARY_TOOLS = {'diary.homework','diary.schedule','diary.sync','diary.study_plan'}
 
@@ -41,7 +41,7 @@ def plan(session):
     for model in [m.Note,m.Approval]:
         for row in rows[model.__tablename__]:
             if row.call_id in callids:add(model,row)
-    for model in [m.VoiceRequest,m.AnswerFragment]:
+    for model in [m.VoiceRequest,m.AnswerFragment,m.ToolEvent]:
         for row in rows[model.__tablename__]:
             if row.task_id in tids:add(model,row)
     active_diary=any(t.status not in {'COMPLETED','FAILED','CANCELLED'} and any(isinstance(step,dict) and step.get('tool') in DIARY_TOOLS for step in (t.plan or [])) for t in tasks)
@@ -84,6 +84,8 @@ def plan(session):
     for row in rows['memories']:
         if row.source in {'demo','atlas-demo','e2e'}:add(m.Memory,row)
     memoryids=ids(m.Memory)
+    for row in rows['embeddings']:
+        if row.assignment_id in aids:add(m.Embedding,row)
     for model in [m.SpaceMemory,m.MemoryFact,m.Embedding]:
         for row in rows[model.__tablename__]:
             if row.memory_id in memoryids:add(model,row)

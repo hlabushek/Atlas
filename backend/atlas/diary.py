@@ -141,3 +141,18 @@ def study_plan(session):
     tasks=session.scalars(select(StudyTask).where(StudyTask.status=='PENDING').order_by(StudyTask.due_at)).all()
     has_real=any(session.get(Assignment,t.assignment_id).provider!='demo' for t in tasks)
     return {'demo':not has_real,'plan':[{'goal':t.goal,'due_at':utc(t.due_at).isoformat(),'suggested_minutes':30} for t in tasks],'method':'Детерминированный порядок ближайших дедлайнов, не план от LLM'}
+
+
+def retrieve(session, query, limit=20, offset=0, provider=None):
+    """Поиск по сохранённым заданиям; демо и реальные источники можно ограничить."""
+    from .embeddings import ranked
+    from .hybrid_search import lexical, rrf
+    from .memory import contains_secret
+    if limit <= 0 or offset < 0 or not query.strip() or contains_secret(query):return []
+    session.flush()
+    filters = (Assignment.provider == provider,) if provider is not None else ()
+    ids = rrf(lexical(session, query, Assignment, [Assignment.subject, Assignment.title],
+                      'assignments_fts', filters=filters), ranked(session, query, domain='diary'))
+    rows = [row for identifier in ids if (row := session.get(Assignment, identifier)) is not None
+            and (provider is None or row.provider == provider)]
+    return rows[offset:offset + limit]

@@ -3,7 +3,7 @@ import re
 from datetime import timedelta
 from sqlalchemy import select, update, delete
 from .db import sessions
-from .models import Task, AnswerFragment, now
+from .models import Task, AnswerFragment, ToolEvent, ToolCall, now
 from .memory import contains_secret, known_secrets
 
 
@@ -73,3 +73,46 @@ def stream_identity(session, task_id):
 def prune(session):
     # Ephemeral transport; canonical completed answer is Task/Message, not this table.
     session.execute(delete(AnswerFragment).where(AnswerFragment.created_at < now() - timedelta(hours=24)))
+    session.execute(delete(ToolEvent).where(ToolEvent.created_at < now() - timedelta(hours=24)))
+
+
+TOOL_STATUSES = {'PREPARED', 'STARTED', 'SUCCEEDED', 'DRY_RUN', 'WAITING_APPROVAL',
+                 'WAITING_DEVICE', 'BLOCKED', 'FAILED', 'UNKNOWN', 'RETRYING'}
+
+
+def publish_tool(session, task, call, claim, status, event_type='tool_progress'):
+    """Только метаданные; аргументы, результат и тексты ошибок не попадают в поток.
+
+    Вызывать под блокировкой задачи до release(); commit принадлежит вызывающему.
+    """
+    from .notifications import utc
+    if (task.claim != claim or task.status != 'RUNNING' or task.lease_until is None
+            or utc(task.lease_until) <= now()):
+        raise ValueError('Аренда событий завершена')
+    if status not in TOOL_STATUSES or event_type not in {'tool_call', 'tool_progress'}:
+        raise ValueError('Некорректное событие инструмента')
+    if contains_secret(call.tool):raise ValueError('Секреты в имени инструмента запрещены')
+    session.add(ToolEvent(task_id=task.id, call_id=call.id, claim=claim, type=event_type,
+                          tool=call.tool, status=status, step=call.step + 1, total=len(task.plan)))
+
+
+def tool_events(session, task_ids, after=0):
+    from .notifications import utc
+    rows = session.execute(select(ToolEvent, Task, ToolCall).join(Task, Task.id == ToolEvent.task_id)
+                           .join(ToolCall, ToolCall.id == ToolEvent.call_id)
+                           .where(ToolEvent.task_id.in_(task_ids), ToolEvent.id > after)
+                           .order_by(ToolEvent.id.desc()).limit(1000)).all()
+    output = []
+    for row, task, call in reversed(rows):
+        if not task or not call or task.status == 'CANCELLED':continue
+        current = (task.claim == row.claim and task.status == 'RUNNING' and task.lease_until is not None
+                   and utc(task.lease_until) > now())
+        settled = row.status == call.status and row.status in {
+            'SUCCEEDED', 'DRY_RUN', 'WAITING_APPROVAL', 'BLOCKED', 'FAILED', 'UNKNOWN'}
+        settled = settled or (task.status == 'WAITING_DEVICE' and call.status == 'STARTED'
+                              and row.status == 'WAITING_DEVICE')
+        settled = settled or (task.status == 'PENDING' and call.status == 'PREPARED' and row.status == 'RETRYING')
+        if not current and not settled:continue
+        output.append({'id':row.id,'task_id':row.task_id,'call_id':row.call_id,'type':row.type,
+                       'tool':row.tool,'status':row.status,'step':row.step,'total':row.total})
+    return output

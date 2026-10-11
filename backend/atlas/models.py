@@ -77,6 +77,20 @@ class AnswerFragment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
 
 
+class ToolEvent(Base):
+    __tablename__ = 'tool_events'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[str] = mapped_column(ForeignKey('tasks.id', ondelete='CASCADE'), index=True)
+    call_id: Mapped[str] = mapped_column(String(36))
+    claim: Mapped[str] = mapped_column(String(36))
+    type: Mapped[str] = mapped_column(String(30))
+    tool: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(30))
+    step: Mapped[int] = mapped_column(Integer)
+    total: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+
+
 class Audit(Base):
     __tablename__ = "audit"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
@@ -422,6 +436,7 @@ class Embedding(Base):
     __tablename__='embeddings'
     key: Mapped[str]=mapped_column(String(64),primary_key=True)
     memory_id: Mapped[str | None]=mapped_column(ForeignKey('memories.id'),nullable=True,index=True)
+    assignment_id: Mapped[str | None]=mapped_column(ForeignKey('assignments.id', ondelete='CASCADE'),nullable=True,index=True)
     model: Mapped[str]=mapped_column(String(200))
     digest: Mapped[str]=mapped_column(String(64))
     vector: Mapped[list]=mapped_column(PublicVector(768).with_variant(JSON(),'sqlite'))

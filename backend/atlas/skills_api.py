@@ -93,6 +93,18 @@ def diary(session:DB,_:Secure):
 @router.get('/diary/day')
 def day_detail(day:date,session:DB,_:Secure):
     return school_day(session,day)
+
+@router.get('/diary/search')
+def search_diary(session:DB,_:Secure,q:str=Query(min_length=1,max_length=4000),
+                 limit:int=Query(default=20,ge=1,le=100),offset:int=Query(default=0,ge=0),
+                 provider:str|None=Query(default=None,max_length=80)):
+    from .diary import retrieve
+    from .embeddings import key, enabled, warm
+    from .models import Embedding
+    try:warm(q)
+    except Exception:pass  # FTS5 remains available if the configured provider fails.
+    return {'assignments':[dto(row) for row in retrieve(session,q,limit,offset,provider)],
+            'method':'rrf','query_vector_cached':enabled(session) and session.get(Embedding,key(q)) is not None}
 @router.get('/diary/days')
 def days_detail(start:date,session:DB,_:Secure,count:int=Query(default=7,ge=1,le=7)):
     return {'days':school_days(session,start,count)}

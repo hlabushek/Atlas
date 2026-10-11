@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_owner_id: int | None = None
     telegram_proxy: str = ""
+    browser_voice_model_path: str = ""
     telegram_stt_model: str = "assemblyai/universal-3-5-pro"
     telegram_stt_kopecks_per_minute: int = Field(default=41, ge=1, le=100000)
     integration_hosts: str = ""

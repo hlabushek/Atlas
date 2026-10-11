@@ -14,8 +14,8 @@ test('voice center receives events, edits policy and sends scoped controls witho
  await page.getByLabel('Пароль владельца').fill(process.env.ATLAS_E2E_PASSWORD!);
  await page.getByRole('button',{name:'Войти в Atlas'}).click();
  await expect(page.getByRole('heading',{name:'Голос Atlas',exact:true})).toBeVisible();
- await expect(page.getByLabel('Уровень микрофона')).toHaveAttribute('value','9');
- await expect(page.getByText('Распознаёт',{exact:false})).toBeVisible();
+ await expect(page.getByLabel('Уровень микрофона',{exact:true})).toHaveAttribute('value','9');
+ await expect(page.getByRole('heading',{name:'Распознаёт',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Остановить озвучку',exact:true}).click();
  await page.getByRole('button',{name:'Отменить задачу',exact:true}).click();
  expect(controls).toEqual(['stop','cancel']);

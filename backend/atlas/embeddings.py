@@ -3,7 +3,7 @@ import hashlib,math,httpx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select,delete
 from .db import sessions
-from .models import Memory,Embedding
+from .models import Memory,Embedding,Assignment
 from .memory import contains_secret
 from .budget import request
 from .model_settings import resolve
@@ -40,27 +40,51 @@ def index_one():
     with sessions()() as s:
         rows=s.scalars(select(Memory).order_by(Memory.created_at)).all()
         candidate=next((m for m in rows if not s.scalar(select(Embedding.key).where(Embedding.memory_id==m.id,Embedding.model==r.identity,Embedding.digest==digest(m.content)))),None)
+        domain='memory'
+        if candidate is None:
+            rows=s.scalars(select(Assignment).order_by(Assignment.synced_at,Assignment.id)).all()
+            candidate=next((a for a in rows if not s.scalar(select(Embedding.key).where(
+                Embedding.assignment_id==a.id,Embedding.model==r.identity,
+                Embedding.digest==digest(assignment_text(a))))),None)
+            domain='diary'
         if candidate is None:return False
-        identifier,text=candidate.id,candidate.content
+        identifier,text=candidate.id,candidate.content if domain=='memory' else assignment_text(candidate)
     v=vector(text,r)
     with sessions()() as s:
-        m=s.scalar(select(Memory).where(Memory.id==identifier).with_for_update())
-        if m and m.content==text and resolve('embedding',s).identity==r.identity:
-            s.execute(delete(Embedding).where(Embedding.memory_id==identifier))
-            s.add(Embedding(key=digest(identifier+key(text,r)),memory_id=identifier,model=r.identity,digest=digest(text),vector=v))
+        model=Memory if domain=='memory' else Assignment
+        m=s.scalar(select(model).where(model.id==identifier).with_for_update())
+        current_text=(m.content if domain=='memory' else assignment_text(m)) if m else None
+        if m and current_text==text and resolve('embedding',s).identity==r.identity:
+            column=Embedding.memory_id if domain=='memory' else Embedding.assignment_id
+            s.execute(delete(Embedding).where(column==identifier))
+            link={'memory_id':identifier} if domain=='memory' else {'assignment_id':identifier}
+            s.add(Embedding(key=digest(domain+identifier+key(text,r)),**link,model=r.identity,digest=digest(text),vector=v))
             try:s.commit()
             except IntegrityError:s.rollback()
     return True
 
-def ranked(session, query):
+def assignment_text(row):
+    return row.subject + ': ' + row.title
+
+
+def ranked(session, query, domain='memory'):
+    if domain not in {'memory','diary'}:raise ValueError('Неизвестная область поиска')
     r=resolve('embedding',session)
     if not r.ready:return []
     q=session.get(Embedding,key(query,r))
     if q is None:return []
-    stmt=select(Embedding).where(Embedding.memory_id.is_not(None),Embedding.model==r.identity)
+    column=Embedding.memory_id if domain=='memory' else Embedding.assignment_id
+    stmt=select(Embedding).where(column.is_not(None),Embedding.model==r.identity)
     if session.bind.dialect.name=='postgresql':stmt=stmt.order_by(Embedding.vector.op('OPERATOR(public.<=>)')(q.vector)).limit(30)
     rows=session.scalars(stmt).all()
     if session.bind.dialect.name!='postgresql':
         def cosine(e):return sum(float(a)*float(b) for a,b in zip(e.vector,q.vector))/(sum(float(a)**2 for a in e.vector)**.5*sum(float(a)**2 for a in q.vector)**.5)
         rows=sorted(rows,key=cosine,reverse=True)[:30]
-    return [e.memory_id for e in rows if (m:=session.get(Memory,e.memory_id)) and e.digest==digest(m.content)]
+    model=Memory if domain=='memory' else Assignment
+    result=[]
+    for e in rows:
+        identifier=e.memory_id if domain=='memory' else e.assignment_id
+        m=session.get(model,identifier)
+        if m and e.digest==digest(m.content if domain=='memory' else assignment_text(m)):
+            result.append(identifier)
+    return result

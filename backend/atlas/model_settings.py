@@ -1,5 +1,5 @@
 """Owner preferences shared by every interface/process. No credentials in SQL."""
-import copy,hashlib
+import hashlib
 from dataclasses import dataclass,field
 from typing import Literal
 from urllib.parse import urlsplit

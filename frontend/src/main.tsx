@@ -26,6 +26,7 @@ import { Integrations, ChatExtras } from "./IntegrationsPanel";
 import { AttachmentComposer, MessageAttachments, useAttachments } from './Attachments';
 import { ModelSettings } from "./ModelSettingsPanel";
 import { VoiceCenter } from "./VoiceCenter";
+import { ToolProgress } from './ToolProgress';
 import { Devices } from "./DevicesPanel";
 import { Skills, Diary } from "./SkillsPanels";
 import { Telegram } from "./ChannelsPanels";
@@ -413,6 +414,8 @@ function App() {
                       <button className="text-button" onClick={()=>attempt(async()=>{await api('/tasks/'+t.id+'/cancel','POST');await refresh()})}>Остановить</button>
                     </div>
                   ))}
+                {tasks.filter(t=>t.conversation_id===cid&&t.tool_events?.length).map(t=>
+                  <ToolProgress key={'tools-'+t.id} events={t.tool_events || []}/>)}
                 {tasks
                   .filter(
                     (t) => t.conversation_id === cid && t.status === "FAILED",
@@ -678,7 +681,7 @@ function App() {
         {section === "diary" && <Diary attempt={attempt} />}
         {section === "initiative-settings" && <InitiativeSettings attempt={attempt} />}
         {section === "devices" && <Devices attempt={attempt} />}
-        {(section==='voice'||visited.voice)&&<div hidden={section!=='voice'}><VoiceCenter attempt={attempt}/></div>}
+        {(section==='voice'||visited.voice)&&<div hidden={section!=='voice'}><VoiceCenter attempt={attempt} active={section==='voice'&&auth} onTranscript={value=>{setText(value);navigate('chat')}}/></div>}
         {(['integrations','budget','data','diagnostics'] as string[]).includes(section)&&<Integrations key={section} attempt={attempt} view={section as 'integrations'|'budget'|'data'|'diagnostics'}/>}
         {section==='data'&&<DataSettings onReset={async()=>{setCid('');setCurrentConversation(null);setMessages([]);await refresh()}}/>}
         {(section==='models'||visited.models)&&<div hidden={section!=='models'}><div className="content"><ModelSettings attempt={attempt} onSaved={async()=>setConfig(await api('/settings'))}/></div></div>}

@@ -71,6 +71,7 @@ export interface PlanStep {
 }
 
 export interface Task {
+  tool_events?: ToolProgressEvent[];
   model_profile?: {model: string; role?: string; routing_reason?: string} | null;
   id: string;
   conversation_id: string;
@@ -89,10 +90,22 @@ export interface Task {
 }
 
 export interface TaskStatusSnapshot {
+  current_step?: number;
   id: string;
   conversation_id: string;
   status: TaskStatus | string;
   error?: string | null;
+}
+
+export interface ToolProgressEvent {
+  id: number;
+  task_id: string;
+  call_id: string;
+  type: 'tool_call' | 'tool_progress';
+  tool: string;
+  status: string;
+  step: number;
+  total: number;
 }
 
 export interface Memory {

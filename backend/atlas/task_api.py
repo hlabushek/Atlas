@@ -63,7 +63,8 @@ def create_agent(body:AgentRequest,session:DB,_:Secure):
 def detail(tid:str,session:DB,_:Secure):
     task=session.get(Task,tid)
     if task is None:raise HTTPException(404,"Задача не найдена")
-    return {**dto(task),"calls":[dto(c) for c in session.scalars(select(ToolCall).where(ToolCall.task_id==tid).order_by(ToolCall.step))]}
+    from .answer_stream import tool_events
+    return {**dto(task),"tool_events":tool_events(session,[tid]),"calls":[dto(c) for c in session.scalars(select(ToolCall).where(ToolCall.task_id==tid).order_by(ToolCall.step))]}
 
 @router.post("/tasks/{tid}/pause")
 def pause(tid:str,session:DB,_:Secure):

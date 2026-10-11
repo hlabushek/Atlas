@@ -280,15 +280,26 @@ async def events(ws: WebSocket):
     if origin not in {"http://" + host, "https://" + host} or not valid_session(ws.cookies.get("atlas_session")):
         await ws.close(code=1008); return
     await ws.accept()
+    previous_progress = []
     try:
         while True:
             if not await asyncio.to_thread(valid_session,ws.cookies.get('atlas_session')):
                 await ws.close(code=1008);return
             def snapshot():
                 with sessions()() as s:
-                    return [{"id": t.id, "conversation_id": t.conversation_id, "status": t.status, "error": t.error} for t in s.scalars(select(Task).order_by(Task.created_at.desc()).limit(100))]
-            await ws.send_json({"type": "tasks", "tasks": await asyncio.to_thread(snapshot)})
-            await asyncio.sleep(1)
+                    from .answer_stream import tool_events
+                    tasks = [{"id":t.id,"conversation_id":t.conversation_id,"status":t.status,
+                              "error":t.error,"current_step":t.current_step} for t in
+                             s.scalars(select(Task).order_by(Task.created_at.desc()).limit(100))]
+                    return tasks, tool_events(s, [t['id'] for t in tasks])
+            tasks, progress = await asyncio.to_thread(snapshot)
+            # Full status snapshots reconcile late owner HTTP responses after
+            # pause/resume; progress itself is sent only when its payload changes.
+            await ws.send_json({"type":"tasks","tasks":tasks})
+            if progress != previous_progress:
+                await ws.send_json({"type":"tool_events","events":progress})
+                previous_progress = progress
+            await asyncio.sleep(0.25)
     except (WebSocketDisconnect, RuntimeError): pass
 
 from .task_api import router as task_router
@@ -317,6 +328,8 @@ app.include_router(connector_actions_router)
 
 from .voice_center_api import router as voice_center_router
 app.include_router(voice_center_router)
+from .browser_voice import router as browser_voice_router
+app.include_router(browser_voice_router)
 
 from .spaces_api import router as spaces_router
 app.include_router(spaces_router)
